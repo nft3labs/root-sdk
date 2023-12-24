@@ -1,0 +1,324 @@
+import {
+  createContext,
+  Context,
+  PropsWithChildren,
+  useState,
+  useCallback,
+  useContext,
+  useMemo,
+  useEffect
+} from 'react'
+import { ROOTClient } from '@rootlabs/client'
+
+import EthereumWallet from '../libs/EthereumWallet'
+import SolanaWallet from '../libs/SolanaWallet'
+import PetraWallet from '../libs/PetraWallet'
+import { NetworkType, WalletType, IWallet } from '../libs/types'
+import WalletSelect from '../components/WalletSelect'
+import ROOTRegister from '../components/ROOTRegister'
+
+type ROOTTheme = 'light' | 'dark'
+
+interface LoginResult {
+  result: boolean
+  needRegister: boolean
+  identifier?: string
+}
+
+interface ROOTContext {
+  account?: string
+  client: ROOTClient
+  didname?: string
+  ready?: boolean
+  theme: ROOTTheme
+  identifier?: string
+  chainId: number
+  connect: () => void
+  login: () => Promise<LoginResult>
+  register: (didname: string) => Promise<string>
+  logout: () => void
+  checkLogin: () => Promise<string | undefined>
+  eagerConnect: () => void
+  disconnect: () => void
+  selectWallet: (wallet: WalletType) => Promise<string>
+}
+
+interface IContexts {
+  value: Context<ROOTContext> | null
+}
+
+const context: IContexts = {
+  value: null
+}
+
+function useWebROOT(endpoint: string) {
+  const [ready, setReady] = useState(false)
+  const [chainId, setChainId] = useState(1)
+  const [account, setAccount] = useState<string>()
+  const [wallet, setWallet] = useState<WalletType>()
+  const [network, setNetwork] = useState<NetworkType>()
+  const [nft3Wallet, setNft3Wallet] = useState<IWallet>()
+  const [selectVisible, setSelectVisible] = useState(false)
+  const [needRegister, setNeedRegister] = useState(false)
+  const [identifier, setIdentifier] = useState<string>()
+
+  const connect = useCallback(async () => {
+    setSelectVisible(true)
+  }, [])
+
+  const client = useMemo(() => {
+    return new ROOTClient(endpoint)
+  }, [endpoint])
+
+  const didname = useMemo(() => {
+    if (!identifier) return undefined
+    const arr = identifier.split(':')
+    return arr[arr.length - 1] + '.isme'
+  }, [identifier])
+
+  useEffect(() => {
+    const sessionKey = sessionStorage.getItem('sessionKey') || undefined
+    if (nft3Wallet?.wallet === 'MetaMask') {
+      const signer = nft3Wallet?.provider?.getSigner()
+      client.did.config({
+        network: nft3Wallet.network.toLowerCase() as any,
+        signer,
+        signKey: sessionKey
+      })
+    }
+    if (nft3Wallet?.network === 'Solana') {
+      client.did.config({
+        network: 'solana',
+        signer: nft3Wallet?.provider,
+        signKey: sessionKey
+      })
+    }
+    if (nft3Wallet?.network === 'Aptos') {
+      client.did.config({
+        network: 'aptos',
+        signer: nft3Wallet?.provider,
+        signKey: sessionKey
+      })
+    }
+  }, [nft3Wallet, client, chainId])
+
+  // DID register
+  const register = useCallback(
+    async (identifier: string) => {
+      const result = await client.did?.register(identifier)
+      setIdentifier(result.identifier)
+      if (client.did.signKey) {
+        sessionStorage.setItem('sessionKey', client.did.signKey)
+      }
+      setReady(true)
+      return result.identifier
+    },
+    [client]
+  )
+
+  // DID login
+  const login = useCallback(async () => {
+    const result: LoginResult = await client.did.login()
+    setIdentifier(result.identifier)
+    if (client.did.signKey) {
+      sessionStorage.setItem('sessionKey', client.did.signKey)
+    }
+    setNeedRegister(result.needRegister)
+    return result
+  }, [client])
+
+  // DID logout
+  const logout = useCallback(() => {
+    setIdentifier(undefined)
+    sessionStorage.removeItem('sessionKey')
+    client.did.logout()
+  }, [client.did])
+
+  // check did login status
+  const checkLogin = useCallback(async () => {
+    try {
+      if (!client.did || !client.did.signer) return
+      const result = await client.did?.checkLogin()
+      setIdentifier(result.identifier)
+      return result.identifier
+    } catch (error) {
+      console.trace(error)
+    } finally {
+      setReady(true)
+    }
+  }, [client])
+
+  useEffect(() => {
+    if (account) checkLogin()
+  }, [checkLogin, account])
+
+  // select a wallet
+  const selectWallet = async (type: WalletType, silent = false) => {
+    let wallet: IWallet
+    if (type === 'MetaMask') {
+      wallet = new EthereumWallet('MetaMask')
+    } else if (type === 'Phantom') {
+      wallet = new SolanaWallet('Phantom')
+    } else if (type === 'Petra') {
+      wallet = new PetraWallet('Petra')
+    } else {
+      throw new Error('Invalid wallet type')
+    }
+    await wallet.connect(silent)
+    setChainId(wallet.chainId)
+    localStorage.setItem('wallet', type)
+    wallet.onAccountChanged((accounts: string[]) => {
+      setAccount(accounts[0] || undefined)
+    })
+    wallet.onChainChanged((chainId: number) => {
+      setChainId(chainId)
+    })
+    wallet.onDisconnect(() => {
+      setAccount(undefined)
+    })
+    setWallet(type)
+    setNft3Wallet(wallet)
+    setAccount(wallet.account || undefined)
+    return wallet.account!
+  }
+
+  // eager connect wallet
+  const eagerConnect = useCallback(async () => {
+    const wallet = localStorage.getItem('wallet') as WalletType
+    if (wallet === 'Phantom' || wallet === 'MetaMask') {
+      selectWallet(wallet, true)
+    }
+  }, [])
+
+  return {
+    chainId,
+    wallet,
+    network,
+    nft3Wallet,
+    account,
+    selectVisible,
+    client,
+    didname,
+    identifier,
+    ready,
+    needRegister,
+    selectWallet,
+    setAccount,
+    setSelectVisible,
+    setNeedRegister,
+    setNft3Wallet,
+    connect,
+    login,
+    logout,
+    checkLogin,
+    register,
+    setWallet,
+    setNetwork,
+    eagerConnect
+  }
+}
+
+function createROOTContext() {
+  context.value = createContext<ROOTContext>({
+    client: new ROOTClient(''),
+    account: undefined,
+    didname: undefined,
+    theme: 'light',
+    chainId: 0,
+    connect: () => {},
+    eagerConnect: () => {},
+    disconnect: () => {},
+    logout: () => {},
+    checkLogin: () => Promise.resolve(undefined),
+    login: () =>
+      Promise.resolve({
+        result: false,
+        needRegister: false,
+        identifier: undefined
+      }),
+    register: () => Promise.resolve(''),
+    selectWallet: () => Promise.resolve('')
+  })
+  const Provider = context.value.Provider
+
+  return function useROOTProvider(
+    props: PropsWithChildren<{
+      endpoint: string
+      theme?: ROOTTheme
+      silent?: boolean
+    }>
+  ) {
+    const theme = props.theme || 'light'
+    const {
+      account,
+      selectVisible,
+      nft3Wallet,
+      client,
+      didname,
+      ready,
+      chainId,
+      identifier,
+      needRegister,
+      selectWallet,
+      connect,
+      setAccount,
+      register,
+      login,
+      logout,
+      checkLogin,
+      setSelectVisible,
+      setNeedRegister,
+      eagerConnect
+    } = useWebROOT(props.endpoint)
+
+    const disconnect = async () => {
+      nft3Wallet?.disconnect()
+      setAccount(undefined)
+      localStorage.removeItem('wallet')
+    }
+
+    return (
+      <Provider
+        value={{
+          account,
+          client,
+          didname,
+          ready,
+          theme,
+          identifier,
+          chainId,
+          login,
+          logout,
+          register,
+          checkLogin,
+          eagerConnect,
+          connect,
+          disconnect,
+          selectWallet
+        }}
+      >
+        {props.children}
+        {props.silent !== true && (
+          <>
+            <WalletSelect
+              visible={selectVisible}
+              onClose={wallet => {
+                if (wallet) selectWallet(wallet)
+                setSelectVisible(false)
+              }}
+            />
+            <ROOTRegister
+              visible={needRegister}
+              onClose={() => setNeedRegister(false)}
+            />
+          </>
+        )}
+      </Provider>
+    )
+  }
+}
+
+export const ROOTProvider = createROOTContext()
+export function useROOT() {
+  return useContext(context.value!)
+}

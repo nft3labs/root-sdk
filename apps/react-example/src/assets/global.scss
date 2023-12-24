@@ -1,0 +1,21 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background-color: var(--color-bg-1);
+  color: var(--color-text-1);
+  font-family: 'Inter', sans-serif;
+}
+.main {
+  padding-top: 60px;
+}
+.arco-modal-wrapper {
+  padding: 20px;
+}
+.arco-modal {
+  max-width: 100%;
+}
+.arco-dropdown-menu {
+  max-height: inherit;
+}
