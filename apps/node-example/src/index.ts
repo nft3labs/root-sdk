@@ -183,15 +183,6 @@ async function requestTwitter() {
   console.log(info)
 }
 
-async function verifyTwitter() {
-  await client.did.login()
-  const result = await verifier.verifyTwitter(
-    'Bart200c',
-    '0xe210debb1bad992a0dc373a95f4fbd2d04024d302e498486b214c0af8666f261'
-  )
-  console.log(result)
-}
-
 async function verifyProof() {
   const info = {
     did: 'did:nft3:alice',
