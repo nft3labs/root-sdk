@@ -40,8 +40,8 @@ export default function useSocial() {
   }, [verifier])
 
   const verifyTwitter = useCallback(
-    async (account: string, msghash: string) => {
-      const result = await verifier.verifyTwitter(account, msghash)
+    async (account: string, msghash: string, link: string) => {
+      const result = await verifier.verifyTwitter(account, msghash, link)
       return result
     },
     [verifier]

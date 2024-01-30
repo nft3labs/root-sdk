@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Message } from '@arco-design/web-react'
+import { Button, Input, Message } from '@arco-design/web-react'
 
 import styles from './style.module.scss'
 import useSocial from '@hooks/useSocial'
@@ -8,6 +8,7 @@ import useSocial from '@hooks/useSocial'
 export default function AddTwitter() {
   const { account } = useParams()
   const navigate = useNavigate()
+  const [link, setLink] = useState('')
   const [loading, setLoading] = useState(false)
   const { requestTwitter, verifyTwitter, addTwitter } = useSocial()
   const [info, setInfo] = useState<{
@@ -24,8 +25,9 @@ export default function AddTwitter() {
 
   const verify = async () => {
     try {
+      if (!info || !link) return
       setLoading(true)
-      const verify = await verifyTwitter(account!, info!.msghash)
+      const verify = await verifyTwitter(account!, info!.msghash, link)
       if (verify.result === false) {
         return Message.error('Verify failed')
       }
@@ -85,19 +87,20 @@ export default function AddTwitter() {
           <div className={styles.cardMain}>
             <div className={styles.cardTitle}>Step 3</div>
             <div className={styles.cardText}>
-              Return to this page and verify your account by clicking this
-              button.
+              Fill in the link of the tweet and verify your account by clicking
+              the verify button.
             </div>
-          </div>
-          <div className={styles.cardBtn}>
-            <Button
-              type="primary"
-              onClick={verify}
-              disabled={!info}
-              loading={loading}
-            >
-              Verify
-            </Button>
+            <div className={styles.cardInput}>
+              <Input.Search
+                searchButton="Verify"
+                style={{ maxWidth: '500px' }}
+                loading={loading}
+                value={link}
+                disabled={!info}
+                onChange={value => setLink(value)}
+                onSearch={verify}
+              />
+            </div>
           </div>
         </div>
       </div>

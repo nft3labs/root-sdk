@@ -45,11 +45,12 @@ export default class ROOTVerifier {
     }
   }
 
-  async verifyTwitter(account: string, msghash: string) {
+  async verifyTwitter(account: string, msghash: string, link: string) {
     const params = new URLSearchParams()
     params.set('did', this.client.did.identifier)
     params.set('account', account)
     params.set('msghash', msghash)
+    params.set('link', link)
     const query = params.toString()
     const url = `/requestVerify/twitter?${query}`
     const { data } = await this.request.get(url)
